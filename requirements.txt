@@ -1,0 +1,7 @@
+# Pinned on purpose: this image is distributed, and a build that silently changes
+# its rendering between two pulls is not reproducible.
+ezdxf==1.4.4
+CairoSVG==2.9.1
+starlette==0.41.3
+uvicorn==0.32.1
+python-multipart==0.0.20

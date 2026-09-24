@@ -1,0 +1,34 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libcairo2 fonts-dejavu-core
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -q
+
+  image:
+    # The LibreDWG build is the fragile part of this repository: it is compiled from
+    # source because no distribution packages it. Building on every push is what makes
+    # a breakage show up here instead of at a customer.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t cad2pdf-service:ci .
+      - name: dwg2dxf is present and the service answers
+        run: |
+          docker run -d --name c -p 8000:8000 cad2pdf-service:ci
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8000/health && break || sleep 1
+          done
+          curl -sf http://localhost:8000/formats | tee /dev/stderr | grep -q '"dwg": *true'
+          docker rm -f c
