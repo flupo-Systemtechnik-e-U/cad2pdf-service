@@ -12,10 +12,21 @@ ARG LIBREDWG_TAG=0.13.3
 FROM ubuntu:${UBUNTU} AS libredwg
 ARG LIBREDWG_TAG
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential git autoconf automake libtool pkg-config \
-        texinfo swig python3-dev ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+# Retried, and not out of superstition. security.ubuntu.com is load balanced, and
+# one server can serve an index naming a package version another server has already
+# dropped from the pool -- apt then fails with a 404 right after a successful update.
+# It looks like a network fault and is not one; a second attempt usually lands on a
+# mirror that agrees with its own index. Build #1 of this image hit exactly that.
+RUN set -eux; \
+    install_pkgs() { \
+        apt-get update && apt-get install -y --no-install-recommends "$@"; \
+    }; \
+    PKGS="build-essential git autoconf automake libtool pkg-config \
+          texinfo swig python3-dev ca-certificates"; \
+    install_pkgs $PKGS \
+        || { sleep 10; install_pkgs $PKGS; } \
+        || { sleep 30; install_pkgs $PKGS; }; \
+    rm -rf /var/lib/apt/lists/*
 RUN git clone --depth 1 --branch ${LIBREDWG_TAG} \
         https://github.com/LibreDWG/libredwg.git /src
 WORKDIR /src
@@ -36,11 +47,16 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # system, text is dropped from the rendering without an error and the sheet comes out
 # as empty frames. SHX fonts are mapped onto TTF, so the metrics differ slightly from
 # the CAD original; that is documented, not fixable here.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        python3 python3-pip python3-venv \
-        libcairo2 \
-        fonts-dejavu-core fonts-liberation \
-    && rm -rf /var/lib/apt/lists/*
+RUN set -eux; \
+    install_pkgs() { \
+        apt-get update && apt-get install -y --no-install-recommends "$@"; \
+    }; \
+    PKGS="python3 python3-pip python3-venv libcairo2 \
+          fonts-dejavu-core fonts-liberation"; \
+    install_pkgs $PKGS \
+        || { sleep 10; install_pkgs $PKGS; } \
+        || { sleep 30; install_pkgs $PKGS; }; \
+    rm -rf /var/lib/apt/lists/*
 
 COPY --from=libredwg /opt/libredwg/bin/dwg2dxf /usr/local/bin/dwg2dxf
 
