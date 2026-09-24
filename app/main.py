@@ -46,11 +46,15 @@ async def convert_endpoint(request: Request) -> Response:
                             status_code=413)
 
     frage = request.query_params
+    if frage.get("page", "auto") not in ("auto",) + tuple(conv.PAGES):
+        return JSONResponse({"error": "Unknown page format.",
+                             "pages": ["auto"] + list(conv.PAGES)}, status_code=400)
     try:
-        pdf = conv.convert(name, daten,
-                           page=frage.get("page", "auto"),
-                           orientation=frage.get("orientation", "auto"),
-                           scale=frage.get("scale", "1"))
+        pdf, format_name, (breite_mm, hoehe_mm), zu_gross = conv.convert(
+            name, daten,
+            page=frage.get("page", "auto"),
+            orientation=frage.get("orientation", "auto"),
+            scale=frage.get("scale", "1"))
     except conv.ConversionError as fehler:
         # 422, not 500: the request was well formed, the file was not usable. The
         # caller can show this text to a person.
@@ -59,13 +63,25 @@ async def convert_endpoint(request: Request) -> Response:
         log.exception("unexpected failure converting %r", name)
         return JSONResponse({"error": "Internal error."}, status_code=500)
 
+    # The format travels back in headers, not only in the bytes: the caller has to
+    # route the sheet to a device that can take it, and reading the page size out of
+    # a PDF just to learn that is work it should not have to do.
     return Response(pdf, media_type="application/pdf", headers={
-        "Content-Disposition": 'inline; filename="converted.pdf"'})
+        "Content-Disposition": 'inline; filename="converted.pdf"',
+        "X-Page-Format": format_name,
+        "X-Page-Width-Mm": "%.1f" % breite_mm,
+        "X-Page-Height-Mm": "%.1f" % hoehe_mm,
+        # The drawing did not fit on the largest sheet offered and is therefore cut.
+        # Said out loud rather than handing over a fragment as if it were whole -- such
+        # a drawing belongs on a plotter.
+        "X-Page-Overflow": "true" if zu_gross else "false",
+    })
 
 
 async def formats_endpoint(request: Request) -> Response:
     return JSONResponse({"formats": list(conv.SUPPORTED),
-                         "dwg": conv.dwg_available()})
+                         "dwg": conv.dwg_available(),
+                         "pages": list(conv.PAGES)})
 
 
 async def health_endpoint(request: Request) -> Response:

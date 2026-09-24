@@ -36,6 +36,32 @@ DWG directly with useful fidelity, so this is a limitation, not an oversight.
 * **No PyMuPDF.** It is AGPL, which would put everyone who *runs* this service under
   the network copyleft. CairoSVG does the same job under the LGPL.
 
+## Paper format and orientation
+
+Both are derived from the file, in this order of authority:
+
+1. **A paper-space layout that contains something.** That is the draughtsman saying
+   which sheet this drawing belongs on, including its orientation, and it beats
+   anything computed. An *empty* layout does not count: every DXF carries a default
+   `Layout1`, and the default happens to be A3 landscape — trusting it blindly would
+   put every model-space drawing on A3.
+2. **The bounding box of what is actually drawn**, computed from the entities.
+
+`$EXTMIN` / `$EXTMAX` are not consulted at all. They are not merely "often stale":
+ezdxf resets them to the sentinel values `1e20` / `-1e20` on write, so a file that has
+passed through any tool can carry pure nonsense there. Measured, not assumed — a round
+trip through `doc.write()` reproduces it every time, and an earlier version of this
+service sized pages against that nonsense.
+
+Offered formats are **A4 and A3**. Anything larger belongs on a plotter and is plotted
+out of the CAD software. A drawing too large for A3 still gets a sheet — the largest
+one — and the response says `X-Page-Overflow: true` so the caller can report it instead
+of quietly handing over a fragment.
+
+Orientation follows the drawing: wider than tall becomes landscape. The format name
+does not change with it, because the printer is chosen by format and not by which edge
+is longer.
+
 ## Scale
 
 The default is **true to size**: one drawing unit becomes one millimetre.
@@ -57,17 +83,21 @@ What is *not* measured here is everything after the PDF. Print drivers like to a
 ```
 POST /convert
      multipart/form-data, field "file"
-     ?page=auto|a4|a3                 default auto (A3 for drawings wider than 260 mm)
+     ?page=auto|a4|a3                 default auto, see "Paper format" above
      ?orientation=auto|portrait|landscape
      ?scale=1|fit                     default 1
   200 application/pdf
-  400 no file
+      X-Page-Format      a4 | a3
+      X-Page-Width-Mm    e.g. 420.0
+      X-Page-Height-Mm   e.g. 297.0
+      X-Page-Overflow    true when the drawing is larger than the sheet
+  400 no file, or an unknown page format
   413 file larger than MAX_UPLOAD_BYTES (default 64 MiB)
-  415 unsupported format
+  415 unsupported file format
   422 file could not be read; the message is meant for a human
   500 anything else
 
-GET /formats    -> {"formats": ["dxf","dwg"], "dwg": true}
+GET /formats    -> {"formats": ["dxf","dwg"], "dwg": true, "pages": ["a4","a3"]}
 GET /health     -> {"status": "ok"}
 ```
 

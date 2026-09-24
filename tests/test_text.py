@@ -43,9 +43,9 @@ def _zeichenbefehle(pdf: bytes) -> int:
 
 
 def test_text_erzeugt_zeichenbefehle():
-    ohne = convert.convert("ohne.dxf", _zeichnung(False), page="a4",
+    ohne, _fmt, _mm, _ueber = convert.convert("ohne.dxf", _zeichnung(False), page="a4",
                            orientation="portrait", scale="1")
-    mit = convert.convert("mit.dxf", _zeichnung(True), page="a4",
+    mit, _fmt, _mm, _ueber = convert.convert("mit.dxf", _zeichnung(True), page="a4",
                           orientation="portrait", scale="1")
     assert _zeichenbefehle(mit) > _zeichenbefehle(ohne) + 20, (
         "text produced no drawing operators -- is a font installed?")

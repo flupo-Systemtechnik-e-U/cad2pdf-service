@@ -15,7 +15,7 @@ TOLERANZ_MM = 0.2          # a raster pixel at 254 dpi
 
 @pytest.mark.parametrize("breite,hoehe", [(50.0, 25.0), (100.0, 50.0), (180.0, 90.0)])
 def test_eine_zeichnungseinheit_wird_ein_millimeter(dxf_bytes, breite, hoehe):
-    pdf = convert.convert("probe.dxf", dxf_bytes(breite, hoehe), page="a4",
+    pdf, _fmt, _mm, _ueber = convert.convert("probe.dxf", dxf_bytes(breite, hoehe), page="a4",
                           orientation="portrait", scale="1")
     _, gezeichnet = pdf_masse(pdf)
     assert gezeichnet is not None, "nothing was drawn"
@@ -24,7 +24,7 @@ def test_eine_zeichnungseinheit_wird_ein_millimeter(dxf_bytes, breite, hoehe):
 
 
 def test_die_seite_hat_das_verlangte_format(dxf_bytes):
-    pdf = convert.convert("probe.dxf", dxf_bytes(100.0), page="a4",
+    pdf, _fmt, _mm, _ueber = convert.convert("probe.dxf", dxf_bytes(100.0), page="a4",
                           orientation="portrait", scale="1")
     (breite, hoehe), _ = pdf_masse(pdf)
     assert abs(breite - 210.0) <= TOLERANZ_MM
@@ -32,7 +32,7 @@ def test_die_seite_hat_das_verlangte_format(dxf_bytes):
 
 
 def test_a3_ist_a3(dxf_bytes):
-    pdf = convert.convert("probe.dxf", dxf_bytes(100.0), page="a3",
+    pdf, _fmt, _mm, _ueber = convert.convert("probe.dxf", dxf_bytes(100.0), page="a3",
                           orientation="portrait", scale="1")
     (breite, hoehe), _ = pdf_masse(pdf)
     assert abs(breite - 297.0) <= TOLERANZ_MM
@@ -44,14 +44,14 @@ def test_zu_grosse_zeichnung_laeuft_bei_scale_1_ueber_die_seite(dxf_bytes):
     drawing larger than the page runs off it and is cut at print time. That is
     visible. The alternative -- silently shrinking it -- is not, and a technical
     drawing at the wrong scale is the more dangerous of the two."""
-    pdf = convert.convert("probe.dxf", dxf_bytes(400.0, 300.0), page="a4",
+    pdf, _fmt, _mm, _ueber = convert.convert("probe.dxf", dxf_bytes(400.0, 300.0), page="a4",
                           orientation="portrait", scale="1")
     (seite_breit, _), gezeichnet = pdf_masse(pdf)
     assert gezeichnet[0] > seite_breit
 
 
 def test_fit_verkleinert_eine_zu_grosse_zeichnung_auf_die_seite(dxf_bytes):
-    pdf = convert.convert("probe.dxf", dxf_bytes(400.0, 300.0), page="a4",
+    pdf, _fmt, _mm, _ueber = convert.convert("probe.dxf", dxf_bytes(400.0, 300.0), page="a4",
                           orientation="portrait", scale="fit")
     (seite_breit, seite_hoch), gezeichnet = pdf_masse(pdf)
     assert gezeichnet[0] <= seite_breit
@@ -66,7 +66,7 @@ def test_fit_skaliert_IMMER_auch_herauf(dxf_bytes):
     This is the whole reason '1' is the default. A sheet marked 100 mm that measures
     200 mm is a trap; one that is visibly cut off is not.
     """
-    pdf = convert.convert("probe.dxf", dxf_bytes(100.0, 50.0), page="a4",
+    pdf, _fmt, _mm, _ueber = convert.convert("probe.dxf", dxf_bytes(100.0, 50.0), page="a4",
                           orientation="portrait", scale="fit")
     _, gezeichnet = pdf_masse(pdf)
     assert gezeichnet[0] > 100.0 + TOLERANZ_MM

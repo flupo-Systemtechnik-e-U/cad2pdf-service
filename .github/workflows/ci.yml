@@ -26,19 +26,19 @@ jobs:
       - run: docker build -t cad2pdf-service:ci .
       - name: dwg2dxf is present and the service answers
         run: |
-          docker run -d --name c -p 8000:8000 cad2pdf-service:ci
+          docker run -d --name cad2pdf-ci -p 8000:8000 cad2pdf-service:ci
           for i in $(seq 1 30); do
             curl -sf http://localhost:8000/health && break || sleep 1
           done
           curl -sf http://localhost:8000/formats | tee /dev/stderr | grep -q '"dwg": *true'
-          docker rm -f c
+          docker rm -f cad2pdf-ci
 
       - name: end-to-end conversion through the running container
         # The font check only means something here. On a developer machine fonts
         # are present anyway; it is the image that gets slimmed down and loses
         # them, and then text vanishes without an error.
         run: |
-          docker run -d --name c2 -p 8001:8000 cad2pdf-service:ci
+          docker run -d --name cad2pdf-e2e -p 8001:8000 cad2pdf-service:ci
           for i in $(seq 1 30); do curl -sf http://localhost:8001/health && break || sleep 1; done
           python3 -m pip install --quiet ezdxf==1.4.4 pypdf
           python3 - <<'EOF'
@@ -64,4 +64,4 @@ jobs:
           assert befehle > 20, "no text rendered -- fonts missing from the image?"
           print("ok: %.1f mm page, %d drawing operators" % (breite, befehle))
           EOF
-          docker rm -f c2
+          docker rm -f cad2pdf-e2e

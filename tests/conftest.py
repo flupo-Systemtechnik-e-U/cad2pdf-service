@@ -23,8 +23,8 @@ def dxf_bytes():
         doc.header["$INSUNITS"] = 4              # millimetres
         doc.modelspace().add_lwpolyline(
             [(0, 0), (breite_mm, 0), (breite_mm, hoehe_mm), (0, hoehe_mm)], close=True)
-        doc.header["$EXTMIN"] = (0, 0, 0)
-        doc.header["$EXTMAX"] = (breite_mm, hoehe_mm, 0)
+        # KEIN $EXTMIN/$EXTMAX: ezdxf setzt die beim Schreiben auf Platzhalter
+        # (1e20 / -1e20) zurueck. Die Ausdehnung wird aus der Geometrie gerechnet.
         strom = io.StringIO()
         doc.write(strom)
         return strom.getvalue().encode("utf-8")
