@@ -32,3 +32,36 @@ jobs:
           done
           curl -sf http://localhost:8000/formats | tee /dev/stderr | grep -q '"dwg": *true'
           docker rm -f c
+
+      - name: end-to-end conversion through the running container
+        # The font check only means something here. On a developer machine fonts
+        # are present anyway; it is the image that gets slimmed down and loses
+        # them, and then text vanishes without an error.
+        run: |
+          docker run -d --name c2 -p 8001:8000 cad2pdf-service:ci
+          for i in $(seq 1 30); do curl -sf http://localhost:8001/health && break || sleep 1; done
+          python3 -m pip install --quiet ezdxf==1.4.4 pypdf
+          python3 - <<'EOF'
+          import io, ezdxf, subprocess, tempfile, os, re
+          from pypdf import PdfReader
+          doc = ezdxf.new("R2010", setup=True); doc.header["$INSUNITS"] = 4
+          msp = doc.modelspace()
+          msp.add_lwpolyline([(0,0),(100,0),(100,50),(0,50)], close=True)
+          msp.add_text("TEIL 4711", height=5).set_placement((5, 55))
+          doc.header["$EXTMIN"]=(0,0,0); doc.header["$EXTMAX"]=(100,62,0)
+          s = io.StringIO(); doc.write(s)
+          with tempfile.NamedTemporaryFile(suffix=".dxf", delete=False) as f:
+              f.write(s.getvalue().encode()); pfad = f.name
+          pdf = subprocess.run(["curl","-sf","-F","file=@%s" % pfad,
+              "http://localhost:8001/convert?page=a4&orientation=portrait&scale=1"],
+              capture_output=True, check=True).stdout
+          os.unlink(pfad)
+          seite = PdfReader(io.BytesIO(pdf)).pages[0]
+          breite = float(seite.mediabox.width) * 25.4 / 72
+          strom = seite.get_contents().get_data().decode("latin-1","replace")
+          befehle = len(re.findall(r"\b[ml]\b", strom))
+          assert abs(breite - 210.0) < 0.2, "page is %.2f mm, expected 210" % breite
+          assert befehle > 20, "no text rendered -- fonts missing from the image?"
+          print("ok: %.1f mm page, %d drawing operators" % (breite, befehle))
+          EOF
+          docker rm -f c2
